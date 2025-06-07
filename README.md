@@ -8,12 +8,12 @@
 Windows:
 
 ```ps1
-git clone --recurse-submodules git@github.com:MarcOlivierFecteau/gro640.git .\gro640\
+git clone --branch master --recurse-submodules git@github.com:MarcOlivierFecteau/gro640.git .\gro640\
 cd .\gro640\
 python -m venv .venv
 # Activate the virtual environment
 .venv\Scripts\Activate.ps1
-pip3 install -r requirements.txt
+pip3 install --requirement requirements.txt
 ```
 
 > [!NOTE]
