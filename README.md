@@ -12,6 +12,5 @@ git clone --recurse-submodules git@github.com:MarcOlivierFecteau/gro640.git .\gr
 cd .\gro640\
 python -m venv .venv
 .venv\Scripts\Activate.ps1
-pip3 install numpy matplotlib scipy
-pip3 install .\include\pyro\
+pip3 install -r requirements.txt
 ```
