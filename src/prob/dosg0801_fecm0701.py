@@ -135,8 +135,9 @@ class CustomPositionController(EndEffectorKinematicController):
         self.L1 = 1.2  # m
         self.L2 = 0.5  # m
         self.L3 = 0.5  # m
-        self.gains = np.diag([1.0, 1.0, 1.0])
-        self.dq_max = np.pi / 4  # Joint speed limits (rad/s)
+        self.gains = np.diag([1.0, 1.0])
+        self.dq_max = np.pi / 4  # Joint speed limits (rad/s). NOTE: optional.
+        self.lambda_dls = 0.1  # Damping factor
 
     def fwd_kin(self, q: np.ndarray) -> np.ndarray:
         """Computes the forward kinematics of the planar robot arm.
@@ -148,7 +149,7 @@ class CustomPositionController(EndEffectorKinematicController):
             ValueError: if `q` is not of shape 3 x 1
 
         Returns:
-            np.ndarray: the end-effector's pose [x, y, phi], where x, y are in meters, and phi is in radians.
+            np.ndarray: the end-effector's pose [x, y], where x, y are in meters.
         """
         if q.shape != (3,):
             raise ValueError("Joint angles `q` MUST be a 1-D array of shape 3 x 1.")
@@ -162,9 +163,8 @@ class CustomPositionController(EndEffectorKinematicController):
             + self.L2 * np.sin(q[0] + q[1])
             + self.L3 * np.sin(q[0] + q[1] + q[2])
         )
-        phi = q[0] + q[1] + q[2]
 
-        return np.array([x, y, phi], dtype=np.float64)
+        return np.array([x, y], dtype=np.float64)
 
     def J(self, q: np.ndarray) -> np.ndarray:
         """Computes the Jacobian matrix of the current configuration of the planar robot arm.
@@ -190,12 +190,10 @@ class CustomPositionController(EndEffectorKinematicController):
         dy_dq2 = self.L2 * c12 + self.L3 * c123
         dy_dq3 = self.L3 * c123
 
-        J = np.array(
-            [[dx_dq1, dx_dq2, dx_dq3], [dy_dq1, dy_dq2, dy_dq3], [1, 1, 1]],
+        return np.array(
+            [[dx_dq1, dx_dq2, dx_dq3], [dy_dq1, dy_dq2, dy_dq3]],
             dtype=np.float64,
         )
-
-        return J
 
     #############################
     def c(self, y: np.ndarray, r: np.ndarray, t: float = 0) -> np.ndarray:
@@ -228,19 +226,12 @@ class CustomPositionController(EndEffectorKinematicController):
         # Desired end-effector velocity
         dr_d = self.gains @ e
 
-        ################
         dq = np.zeros(3, dtype=np.float64)
 
-        if np.linalg.det(J) != 0:
-            dq = np.linalg.pinv(J) @ dr_d
-        else:
-            # TODO: handle singularity
-            # Suggestion: Damped Least Squares (DLS) method
-            lambda_dls = 0.01  # Damping factor. TODO: tune.
-            J_dls_inv = J.T @ np.linalg.inv(
-                J @ J.T + (lambda_dls**2) * np.identity(3, dtype=np.float64)
-            )
-            dq = J_dls_inv @ dr_d
+        J_dls_inv = J.T @ np.linalg.inv(
+            J @ J.T + (self.lambda_dls**2) * np.identity(2, dtype=np.float64)
+        )
+        dq = J_dls_inv @ dr_d
 
         # (Bonus) Handle joint speed limits
         dq = np.clip(dq, -self.dq_max, self.dq_max)

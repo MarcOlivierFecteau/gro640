@@ -16,7 +16,7 @@ def main(args=None):
         "--target",
         type=float,
         nargs=2,
-        default=[0.0, -0.5],
+        default=[0.0, -1.0],
         help="Target position for the end-effector (2 values)",
     )
     parsed_args = parser.parse_args(args)
