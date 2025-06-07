@@ -10,7 +10,24 @@ Windows:
 ```ps1
 git clone --recurse-submodules git@github.com:MarcOlivierFecteau/gro640.git .\gro640\
 cd .\gro640\
+# Activate the virtual environment
 python -m venv .venv
 .venv\Scripts\Activate.ps1
 pip3 install -r requirements.txt
+```
+
+> [!NOTE]
+> Every time you open a new terminal, you MUST activate the virtual environment.
+
+## Make it your own
+
+Windows:
+
+```ps1
+cd path/to/gro640/
+Remove-Item -Recurse -Force .git\
+git init --initial-branch <branch_name> .\
+Rename-Item .\src\prob\dosg0801_fecm0701.py <cip1_cip2>.py
+git remote add origin git@github.com:<your_github_username>/<remote_repo_name>.git
+git push -u origin <branch_name>
 ```
