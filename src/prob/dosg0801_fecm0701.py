@@ -13,7 +13,7 @@ from pyro.control.robotcontrollers import EndEffectorKinematicController
 ###################
 
 
-def dh2T(r, d, theta, alpha):
+def dh2T(r: float, d: float, theta: float, alpha: float) -> np.ndarray:
     """
 
     Parameters
@@ -32,16 +32,30 @@ def dh2T(r, d, theta, alpha):
 
     """
 
-    T = np.zeros((4, 4))
-
-    ###################
-    # Votre code ici
-    ###################
+    T = np.array(
+        [
+            [
+                np.cos(theta),
+                -np.sin(theta) * np.cos(alpha),
+                np.sin(theta) * np.sin(alpha),
+                r * np.cos(theta),
+            ],
+            [
+                np.sin(theta),
+                np.cos(theta) * np.cos(alpha),
+                -np.cos(theta) * np.sin(alpha),
+                r * np.sin(theta),
+            ],
+            [0, np.sin(alpha), np.cos(alpha), d],
+            [0, 0, 0, 1],
+        ],
+        dtype=np.float64,
+    )
 
     return T
 
 
-def dhs2T(r, d, theta, alpha):
+def dhs2T(r: np.ndarray, d: np.ndarray, theta: np.ndarray, alpha: np.ndarray):
     """
 
     Parameters
@@ -60,11 +74,12 @@ def dhs2T(r, d, theta, alpha):
 
     """
 
-    WTT = np.zeros((4, 4))
+    WTT = np.eye(4, dtype=np.float64)
 
-    ###################
-    # Votre code ici
-    ###################
+    n = r.shape[0]
+
+    for i in range(n):
+        WTT = WTT @ dh2T(r[i], d[i], theta[i], alpha[i])
 
     return WTT
 
@@ -81,16 +96,25 @@ def f(q):
     Returns
     -------
     r : float 3x1
-        Effector (x,y,z) position
+        Effector's cartesian position (x,y,z)
 
     """
-    r = np.zeros((3, 1))
+    __r = np.zeros((3, 1))
 
-    ###################
-    # Votre code ici
-    ###################
+    # TODO: Get DH parameters for 6th joint from Kuka robot's CAD
+    r = np.array([0.033, 0.155, 0.155, 0, 0, 0], dtype=np.float64)
+    d = np.array([0.147, 0, 0, 0, 0.2175, 0], dtype=np.float64)
+    theta = np.array([q[0], q[1], q[2], q[3], q[4], q[5]], dtype=np.float64)
+    alpha = np.array([np.pi / 2, 0, 0, np.pi / 2, 0, 0], dtype=np.float64)
 
-    return r
+    T = np.eye(4)
+    for i in range(6):
+        T = T @ dh2T(r[i], d[i], theta[i], alpha[i])
+
+    # Position de l'effecteur (x, y, z)
+    r = T[0:3, 3].reshape((3, 1))
+
+    return __r
 
 
 ###################
@@ -110,7 +134,7 @@ class CustomPositionController(EndEffectorKinematicController):
         ###################################################
 
     #############################
-    def c(self, y, r, t=0):
+    def c(self, y: np.ndarray, r: np.ndarray, t: float = 0) -> np.ndarray:
         """
         Feedback law: u = c(y,r,t)
 
@@ -138,7 +162,7 @@ class CustomPositionController(EndEffectorKinematicController):
         e = r_desired - r_actual
 
         ################
-        dq = np.zeros(self.m)  # place-holder de bonne dimension
+        dq = np.zeros(self.m, dtype=np.float64)  # place-holder de bonne dimension
 
         ##################################
         # Votre loi de commande ici !!!
