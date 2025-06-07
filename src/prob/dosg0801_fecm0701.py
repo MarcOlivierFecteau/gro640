@@ -132,6 +132,70 @@ class CustomPositionController(EndEffectorKinematicController):
         ###################################################
         # Vos paramètres de loi de commande ici !!
         ###################################################
+        self.L1 = 1.2  # m
+        self.L2 = 0.5  # m
+        self.L3 = 0.5  # m
+        self.gains = np.diag([1.0, 1.0, 1.0])
+        self.dq_max = np.pi / 4  # Joint speed limits (rad/s)
+
+    def fwd_kin(self, q: np.ndarray) -> np.ndarray:
+        """Computes the forward kinematics of the planar robot arm.
+
+        Args:
+            q (np.ndarray): current joint configuration (rad)
+
+        Raises:
+            ValueError: if `q` is not of shape 3 x 1
+
+        Returns:
+            np.ndarray: the end-effector's pose [x, y, phi], where x, y are in meters, and phi is in radians.
+        """
+        if q.shape != (3,):
+            raise ValueError("Joint angles `q` MUST be a 1-D array of shape 3 x 1.")
+        x = (
+            self.L1 * np.cos(q[0])
+            + self.L2 * np.cos(q[0] + q[1])
+            + self.L3 * np.cos(q[0] + q[1] + q[2])
+        )
+        y = (
+            self.L1 * np.sin(q[0])
+            + self.L2 * np.sin(q[0] + q[1])
+            + self.L3 * np.sin(q[0] + q[1] + q[2])
+        )
+        phi = q[0] + q[1] + q[2]
+
+        return np.array([x, y, phi], dtype=np.float64)
+
+    def J(self, q: np.ndarray) -> np.ndarray:
+        """Computes the Jacobian matrix of the current configuration of the planar robot arm.
+
+        Args:
+            q (np.ndarray): current joint configuration (rad)
+
+        Returns:
+            np.ndarray: the Jacobian matrix `J`
+        """
+        # Pre-compute sines and cosines for convenience
+        s1, c1 = np.sin(q[0]), np.cos(q[0])
+        s12, c12 = np.sin(q[0] + q[1]), np.cos(q[0] + q[1])
+        s123, c123 = np.sin(q[0] + q[1] + q[2]), np.cos(q[0] + q[1] + q[2])
+
+        # Partial derivatives for x
+        dx_dq1 = -self.L1 * s1 - self.L2 * s12 - self.L3 * s123
+        dx_dq2 = -self.L2 * s12 - self.L3 * s123
+        dx_dq3 = -self.L3 * s123
+
+        # Partial derivatives for y
+        dy_dq1 = self.L1 * c1 + self.L2 * c12 + self.L3 * c123
+        dy_dq2 = self.L2 * c12 + self.L3 * c123
+        dy_dq3 = self.L3 * c123
+
+        J = np.array(
+            [[dx_dq1, dx_dq2, dx_dq3], [dy_dq1, dy_dq2, dy_dq3], [1, 1, 1]],
+            dtype=np.float64,
+        )
+
+        return J
 
     #############################
     def c(self, y: np.ndarray, r: np.ndarray, t: float = 0) -> np.ndarray:
@@ -139,12 +203,12 @@ class CustomPositionController(EndEffectorKinematicController):
         Feedback law: u = c(y,r,t)
 
         INPUTS
-        y = q   : sensor signal vector  = joint angular positions      dof x 1
-        r = r_d : reference signal vector  = desired effector position   e x 1
+        y = q   : sensor signal vector  = joint angular positions        3 x 1
+        r = r_d : reference signal vector  = desired effector position   3 x 1
         t       : time                                                   1 x 1
 
         OUPUTS
-        u = dq  : control inputs vector =  joint velocities             dof x 1
+        u = dq  : control inputs vector =  joint velocities              3 x 1
 
         """
 
@@ -161,12 +225,25 @@ class CustomPositionController(EndEffectorKinematicController):
         # Error
         e = r_desired - r_actual
 
-        ################
-        dq = np.zeros(self.m, dtype=np.float64)  # place-holder de bonne dimension
+        # Desired end-effector velocity
+        dr_d = self.gains @ e
 
-        ##################################
-        # Votre loi de commande ici !!!
-        ##################################
+        ################
+        dq = np.zeros(3, dtype=np.float64)
+
+        if np.linalg.det(J) != 0:
+            dq = np.linalg.pinv(J) @ dr_d
+        else:
+            # TODO: handle singularity
+            # Suggestion: Damped Least Squares (DLS) method
+            lambda_dls = 0.01  # Damping factor. TODO: tune.
+            J_dls_inv = J.T @ np.linalg.inv(
+                J @ J.T + (lambda_dls**2) * np.identity(3, dtype=np.float64)
+            )
+            dq = J_dls_inv @ dr_d
+
+        # (Bonus) Handle joint speed limits
+        dq = np.clip(dq, -self.dq_max, self.dq_max)
 
         return dq
 
