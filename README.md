@@ -21,6 +21,9 @@ pip3 install -r requirements.txt
 
 ## Make it your own
 
+> [!IMPORTANT]
+> BEFORE running the commands, you MUST create an empty repository on GitHub.
+
 Windows:
 
 ```ps1
@@ -28,6 +31,8 @@ cd path/to/gro640/
 Remove-Item -Recurse -Force .git\
 git init --initial-branch <branch_name> .\
 Rename-Item .\src\prob\dosg0801_fecm0701.py <cip1_cip2>.py
+git add .
+git commit -m "Initial commit"
 git remote add origin git@github.com:<your_github_username>/<remote_repo_name>.git
 git push -u origin <branch_name>
 ```
