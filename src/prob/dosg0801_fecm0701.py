@@ -303,7 +303,7 @@ class CustomDrillingController(robotcontrollers.RobotController):
 ###################
 
 
-def goal2r(r_0, r_f, t_f):
+def goal2r(r_0: np.ndarray, r_f: np.ndarray, t_f: float):
     """
 
     Parameters
@@ -335,6 +335,32 @@ def goal2r(r_0, r_f, t_f):
     #################################
     # Votre code ici !!!
     ##################################
+
+    # NOTE: We use a third order polynomial interpolation to generate the trajectory.
+    #       This offers a good compromise between smoothness of the trajectory and computing complexity.
+
+    if r_0.shape != r_f.shape:
+        raise ValueError("`r_0` and `r_f` MUST have the same shape.")
+
+    t = np.linspace(0.0, t_f, l)
+
+    for i in range(m):
+        # Compute positions
+        r[i, :] = (
+            r_0[i]
+            + (3 * (r_f[i] - r_0[i]) / (t_f**2)) * t**2
+            + (-2 * (r_f[i] - r_0[i]) / (t_f**3)) * t**3
+        )
+
+        # Compute speeds
+        dr[i, :] = (6 * (r_f[i] - r_0[i]) / (t_f**2)) * t + (
+            -6 * (r_f[i] - r_0[i]) / (t_f**3)
+        ) * t**2
+
+        # Compute accelerations
+        ddr[i, :] = (6 * (r_f[i] - r_0[i]) / (t_f**2)) + (
+            -12 * (r_f[i] - r_0[i]) / (t_f**3)
+        ) * t
 
     return r, dr, ddr
 
@@ -372,6 +398,8 @@ def r2q(r, dr, ddr, manipulator):
     # Votre code ici !!!
     ##################################
 
+    # TODO: depends on DH parameters of drilling robot
+
     return q, dq, ddq
 
 
@@ -403,5 +431,7 @@ def q2torque(q, dq, ddq, manipulator):
     #################################
     # Votre code ici !!!
     ##################################
+
+    # TODO: depends on DH parameters of drilling robot
 
     return tau
