@@ -106,9 +106,7 @@ def f(q):
     theta = np.array([q[0], q[1], q[2], q[3], q[4], 0], dtype=np.float64)
     alpha = np.array([np.pi / 2, 0, 0, np.pi / 2, 0, 0], dtype=np.float64)
 
-    T = np.eye(4)
-    for i in range(6):
-        T = T @ dh2T(r[i], d[i], theta[i], alpha[i])
+    T = dhs2T(r, d, theta, alpha)
 
     # Position de l'effecteur (x, y, z)
     __r = T[0:3, 3].reshape((3, 1))
