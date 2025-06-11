@@ -101,10 +101,9 @@ def f(q):
     """
     __r = np.zeros((3, 1))
 
-    # TODO: Get DH parameters for 6th joint from Kuka robot's CAD
-    r = np.array([0.033, 0.155, 0.155, 0, 0, 0], dtype=np.float64)
-    d = np.array([0.147, 0, 0, 0, 0.2175, 0], dtype=np.float64)
-    theta = np.array([q[0], q[1], q[2], q[3], q[4], q[5]], dtype=np.float64)
+    r = np.array([0.033, 0.155, 0.155, 0, 0, 0.051], dtype=np.float64)
+    d = np.array([0.147, 0, 0, 0, 0.2175, q[5] + 0.01], dtype=np.float64)
+    theta = np.array([q[0], q[1], q[2], q[3], q[4], 0], dtype=np.float64)
     alpha = np.array([np.pi / 2, 0, 0, np.pi / 2, 0, 0], dtype=np.float64)
 
     T = np.eye(4)
@@ -112,7 +111,7 @@ def f(q):
         T = T @ dh2T(r[i], d[i], theta[i], alpha[i])
 
     # Position de l'effecteur (x, y, z)
-    r = T[0:3, 3].reshape((3, 1))
+    __r = T[0:3, 3].reshape((3, 1))
 
     return __r
 
