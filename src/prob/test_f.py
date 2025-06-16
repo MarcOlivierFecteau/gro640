@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+import numpy as np
+from dosg0801_fecm0701 import f 
 
-from dosg0801_fecm0701 import f
-
-q = [1.5, 1.0, -0.5, -0.25, 0.1, 0.1]
-
+q = [0,0,0,0,0,0]
 r = f(q)
 
 print(r)
