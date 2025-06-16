@@ -302,7 +302,6 @@ class CustomDrillingController(robotcontrollers.RobotController):
         elif abs(r_d_fond[2] - r[2]) < 1e-3 and self.case == 1:
             self.case = 2
 
-
         match self.case:
             case 0:
                 u = J.T @ (kp_approche * (r_d_approche - r) + kd_approche * (-J@dq)) + g
@@ -361,23 +360,23 @@ def goal2r(r_0: np.ndarray, r_f: np.ndarray, t_f: float):
 
     t = np.linspace(0.0, t_f, l)
 
-    for i in range(m):
+    for i in range(l):
         # Compute positions
-        r[i, :] = (
-            r_0[i]
-            + (3 * (r_f[i] - r_0[i]) / (t_f**2)) * t**2
-            + (-2 * (r_f[i] - r_0[i]) / (t_f**3)) * t**3
+        r[:, i] = (
+            r_0
+            + (3 * (r_f - r_0) / (t_f**2)) * t[i]**2
+            + (-2 * (r_f - r_0) / (t_f**3)) * t[i]**3
         )
 
         # Compute speeds
-        dr[i, :] = (6 * (r_f[i] - r_0[i]) / (t_f**2)) * t + (
-            -6 * (r_f[i] - r_0[i]) / (t_f**3)
-        ) * t**2
+        dr[:, i] = (6 * (r_f - r_0) / (t_f**2)) * t[i] + (
+            -6 * (r_f - r_0) / (t_f**3)
+        ) * t[i]**2
 
         # Compute accelerations
-        ddr[i, :] = (6 * (r_f[i] - r_0[i]) / (t_f**2)) + (
-            -12 * (r_f[i] - r_0[i]) / (t_f**3)
-        ) * t
+        ddr[:, i] = (6 * (r_f - r_0) / (t_f**2)) + (
+            -12 * (r_f - r_0) / (t_f**3)
+        ) * t[i]
 
     return r, dr, ddr
 
@@ -406,31 +405,55 @@ def r2q(r, dr, ddr, manipulator):
     # Number of DoF
     n = 3
 
-    x, y, z = r
-    L1, L2, L3 = manipulator.l1, manipulator.l2, manipulator.l3
-    q1 = np.atan2(y, x)
-    c3 = (x**2 + y**2 + (z-1)**2 - L2**2 - L3**2 ) / (2*L2*L3)
-    s3 = np.sqrt(1 - c3**2)
-    q3 = np.atan2(s3, c3)
-    s2 = ((L2 + L3*c3)*(z - L1) - (L3*s3)*(x*np.cos(q1) + y*np.sin(q1))) / (L3**2 * s3**2 - (L2 + L3 * c3**2))
-    c2 = np.sqrt(1 - s2**2)
-    q2 = np.atan2(s2, c2)
-
     # Output dimensions
-    dq = np.zeros((n, l))
-    ddq = np.zeros((n, l))
+    q = np.zeros((n, l), dtype=np.float64)
+    dq = np.zeros((n, l), dtype=np.float64)
+    ddq = np.zeros((n, l), dtype=np.float64)
 
-    #################################
-    # Votre code ici !!!
-    ##################################
+    L1, L2, L3 = manipulator.l1, manipulator.l2, manipulator.l3
 
-    q = np.array([q1, q2, q3])
-    J = manipulator.J(q)
-    dq = np.linalg.inv(J) @ dr
-    ddq = 
+    for i in range(l):
+        x, y, z = r[0, i], r[1, i], r[2, i]
+        q1 = np.atan2(y, x)
+        c3 = (x**2 + y**2 + (z - L1) ** 2 - (L2**2 + L3**2)) / (2 * L2 * L3)
+        q3 = np.arccos(c3)
+        q2 = np.atan2(z-L1, np.sqrt(x**2 + y**2)) - np.atan2(L3*np.sin(q3), L2 + L3*np.sin(q3))
+        q[:, i] = np.array([q1, q2, q3], dtype=np.float64)
 
+    for i in range(l):
+        c1, c2, c23 = np.cos(q[0, i]), np.cos(q[1, i]), np.cos(q[1, i] + q[2, i])
+        s1, s2, s23 = np.sin(q[0, i]), np.sin(q[1, i]), np.sin(q[1, i] + q[2, i])
+        A = L2 * c2 + L3 * c23
+        B = L2 * s2 + L3 * s23
 
-    # TODO: depends on DH parameters of drilling robot
+        J = manipulator.J(q[:, i])
+
+        J_pinv = np.linalg.pinv(J)
+        dq[:, i] = J_pinv @ dr[:, i]
+
+        # Compute the derivative of the Jacobian matrix
+        dq1, dq2, dq3 = dq[0, i], dq[1, i], dq[2, i]
+        J_dot11 = -c1 * A * dq1 + s1 * B * dq2 + L3 * s1 * s23 * dq3
+        J_dot12 = s1 * B * dq1 - c1 * B * dq2 - L3 * c1 * c23 * dq3
+        J_dot13 = L3 * s1 * s23 * dq1 - L3 * c1 * c23 * dq2 - L3 * c1 * c23 * dq3
+        J_dot21 = -s1 * A * dq1 - c1 * B * dq2 * L3 * c1 * s23 * dq3
+        J_dot22 = -c1 * B * dq1 - s1 * A * dq2 - L3 * s1 * c23 * dq3
+        J_dot23 = -L3 * c1 * s23 * dq1 - L3 * s1 * c23 * dq2 - L3 * s1 * c23 * dq3
+        J_dot31 = 0
+        J_dot32 = -B * dq2 - L3 * s23 * dq3
+        J_dot33 = -L3 * s23 * dq2 - L3 * s23 * dq3
+        J_dot = np.array(
+            [
+                [J_dot11, J_dot12, J_dot13],
+                [J_dot21, J_dot22, J_dot23],
+                [J_dot31, J_dot32, J_dot33],
+            ],
+            dtype=np.float64,
+        )
+        # dJ_dq1, dJ_dq2 = np.gradient(J)
+        # J_dot = np.sqrt(dJ_dq1**2 + dJ_dq2**2)
+
+        ddq[:, i] = J_pinv @ (ddr[:, i] - J_dot @ dr[:, i])
 
     return q, dq, ddq
 
@@ -464,6 +487,13 @@ def q2torque(q, dq, ddq, manipulator):
     # Votre code ici !!!
     ##################################
 
-    # TODO: depends on DH parameters of drilling robot
+    for i in range(l):
+        qi, dqi, ddqi = q[:, i], dq[:, i], ddq[:, i]
+        g = manipulator.g(qi)  # Gravity vector
+        H = manipulator.H(qi)  # Inertia matrix
+        C = manipulator.C(qi, dqi)  # Coriolis matrix
+        d = manipulator.d(qi, dqi) # Dissipative forces matrix
+        B = manipulator.B(qi) # Actuator matrix
+        tau[:, i] = np.linalg.inv(B) @ (H @ ddqi + C @ dqi + d + g)
 
     return tau

@@ -23,7 +23,7 @@ def J(q1: np.ndarray, q2: np.ndarray) -> np.ndarray:
     )
 
 
-def q2torque(J, q1, q2):
+def q2torque(J):
     fe = np.array([0, -1])
     tau = J.T @ fe
 
@@ -35,7 +35,7 @@ tau2 = np.zeros((np.shape(q1)[0], np.shape(q2)[0]), dtype=np.float64)
 for i in range(len(q1)):
     for j in range(len(q2)):
         penis = J(q1[i], q2[j])
-        tau1[i, j], tau2[i, j] = q2torque(penis, q1[i], q2[j])
+        tau1[i, j], tau2[i, j] = q2torque(penis)
 
 # Plot the surface
 fig = plt.figure(figsize=(10, 8))
