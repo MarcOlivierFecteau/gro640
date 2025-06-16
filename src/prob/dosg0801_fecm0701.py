@@ -133,7 +133,7 @@ class CustomPositionController(EndEffectorKinematicController):
         self.L2 = 0.5  # m
         self.L3 = 0.5  # m
         self.gains = np.diag([1.0, 1.0])
-        self.dq_max = np.pi / 4  # Joint speed limits (rad/s). NOTE: optional.
+        self.dq_max = np.pi  # Joint speed limits (rad/s). NOTE: optional.
         self.lambda_dls = 0.1  # Damping factor
 
     def fwd_kin(self, q: np.ndarray) -> np.ndarray:
@@ -406,14 +406,29 @@ def r2q(r, dr, ddr, manipulator):
     # Number of DoF
     n = 3
 
+    x, y, z = r
+    L1, L2, L3 = manipulator.l1, manipulator.l2, manipulator.l3
+    q1 = np.atan2(y, x)
+    c3 = (x**2 + y**2 + (z-1)**2 - L2**2 - L3**2 ) / (2*L2*L3)
+    s3 = np.sqrt(1 - c3**2)
+    q3 = np.atan2(s3, c3)
+    s2 = ((L2 + L3*c3)*(z - L1) - (L3*s3)*(x*np.cos(q1) + y*np.sin(q1))) / (L3**2 * s3**2 - (L2 + L3 * c3**2))
+    c2 = np.sqrt(1 - s2**2)
+    q2 = np.atan2(s2, c2)
+
     # Output dimensions
-    q = np.zeros((n, l))
     dq = np.zeros((n, l))
     ddq = np.zeros((n, l))
 
     #################################
     # Votre code ici !!!
     ##################################
+
+    q = np.array([q1, q2, q3])
+    J = manipulator.J(q)
+    dq = np.linalg.inv(J) @ dr
+    ddq = 
+
 
     # TODO: depends on DH parameters of drilling robot
 
