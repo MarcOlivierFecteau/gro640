@@ -101,15 +101,11 @@ def f(q):
     """
     __r = np.zeros((3, 1))
 
-    # r = np.array([0.033, 0.155, 0.155, 0, 0, 0], dtype=np.float64)
-    # d = np.array([0.147, 0, 0, 0, 0.2175, q[5] + 0.01], dtype=np.float64)
-    # theta = np.array([q[0], q[1], q[2], q[3], q[4], 0], dtype=np.float64)
-    # alpha = np.array([np.pi / 2, 0, 0, np.pi / 2, 0, 0], dtype=np.float64)
-    r = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0], dtype=np.float64)
-    d = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0], dtype=np.float64)
-    theta = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0], dtype=np.float64)
-    alpha = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0], dtype=np.float64)
-
+    r = np.array([0.033, 0.155, 0.135, 0, 0, 0], dtype=np.float64)
+    d = np.array([0.075, 0, 0, 0, 0.218, 0.0095 + q[5]], dtype=np.float64)
+    theta = np.array([q[0], q[1]+np.pi/2, q[2], q[3]-np.pi/2, q[4], np.pi/2], dtype=np.float64)
+    alpha = np.array([np.pi / 2, 0, 0, -np.pi / 2, np.pi/2, 0], dtype=np.float64)
+   
     T = dhs2T(r, d, theta, alpha)
 
     # Position de l'effecteur (x, y, z)
@@ -258,6 +254,7 @@ class CustomDrillingController(robotcontrollers.RobotController):
 
         # Label
         self.name = "Custom Drilling Controller"
+        self.case = 0
 
     #############################
     def c(self, y, r, t=0):
@@ -275,16 +272,14 @@ class CustomDrillingController(robotcontrollers.RobotController):
         """
 
         # Ref
-        f_e = r
+        f_e = np.array([0,0,-200])
 
         # Feedback from sensors
         x = y
         [q, dq] = self.x2q(x)
 
         # Robot model
-        r = self.robot_model.forward_kinematic_effector(
-            q
-        )  # End-effector actual position
+        r = self.robot_model.forward_kinematic_effector(q)  # End-effector actual position
         J = self.robot_model.J(q)  # Jacobian matrix
         g = self.robot_model.g(q)  # Gravity vector
         H = self.robot_model.H(q)  # Inertia matrix
@@ -293,24 +288,30 @@ class CustomDrillingController(robotcontrollers.RobotController):
         ##################################
         # Votre loi de commande ici !!!
         ##################################
+        kp_approche = np.array([30,30,2])
+        kp_sortie = np.array([200,200,1000])
+        kp_fond = np.array([1000,1000,1])
+        kd_approche = np.array([20,20,1])
+        kd_fond = np.array([200,200,1])
+        r_d_approche = np.array([0.25,0.25, 0.40])
+        r_d_fond = np.array([0.25,0.25,0.20])
+        # print(r)
+        
+        if np.linalg.norm(r_d_approche - r)<1e-2 and self.case == 0:
+            self.case = 1
+        elif abs(r_d_fond[2] - r[2]) < 1e-3 and self.case == 1:
+            self.case = 2
 
-        # Contrôleur en position x-y
-        r_d = np.array([0.25, 0.25, 0.2])
-        if abs(r[0] - r_d[0]) < 1e-3 and abs(r[1] - r_d[1]) < 1e-3 and abs(r[2] - r_d[2]) < 1e-3:
-           pass # TODO: controleur en force pour Z || controleur hybride
-        else:
-            r_e = r_d - r
-            dr_d = np.array([1.0, 1.0]) * r_e
-            dr_r = dr_d
-            dq = np.linalg.inv(J) @ dr_r
-            return dq
 
-        # Contrôleur force en Z
-        f_d = np.array([0, 0, -200], dtype=np.float64)
-        tau = J.T @ (f_d - f_e) + g
-
-        u = tau
-
+        match self.case:
+            case 0:
+                u = J.T @ (kp_approche * (r_d_approche - r) + kd_approche * (-J@dq)) + g
+            case 1:
+                    u = J.T @ (kp_fond * (r_d_fond - r) + f_e + kd_fond * (-J@dq)) + g
+                    # u = J.T @ f_e + g
+            case 2:
+                u = J.T @ (kp_sortie * (r_d_approche - r) + kd_fond * (-J@dq)) + g
+                
         return u
 
 
