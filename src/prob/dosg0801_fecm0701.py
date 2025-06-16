@@ -103,9 +103,12 @@ def f(q):
 
     r = np.array([0.033, 0.155, 0.135, 0, 0, 0], dtype=np.float64)
     d = np.array([0.075, 0, 0, 0, 0.218, 0.0095 + q[5]], dtype=np.float64)
-    theta = np.array([q[0], q[1]+np.pi/2, q[2], q[3]-np.pi/2, q[4], np.pi/2], dtype=np.float64)
-    alpha = np.array([np.pi / 2, 0, 0, -np.pi / 2, np.pi/2, 0], dtype=np.float64)
-   
+    theta = np.array(
+        [q[0], q[1] + np.pi / 2, q[2], q[3] - np.pi / 2, q[4], np.pi / 2],
+        dtype=np.float64,
+    )
+    alpha = np.array([np.pi / 2, 0, 0, -np.pi / 2, np.pi / 2, 0], dtype=np.float64)
+
     T = dhs2T(r, d, theta, alpha)
 
     # Position de l'effecteur (x, y, z)
@@ -272,14 +275,16 @@ class CustomDrillingController(robotcontrollers.RobotController):
         """
 
         # Ref
-        f_e = np.array([0,0,-200])
+        f_e = np.array([0, 0, -200])
 
         # Feedback from sensors
         x = y
         [q, dq] = self.x2q(x)
 
         # Robot model
-        r = self.robot_model.forward_kinematic_effector(q)  # End-effector actual position
+        r = self.robot_model.forward_kinematic_effector(
+            q
+        )  # End-effector actual position
         J = self.robot_model.J(q)  # Jacobian matrix
         g = self.robot_model.g(q)  # Gravity vector
         H = self.robot_model.H(q)  # Inertia matrix
@@ -288,29 +293,32 @@ class CustomDrillingController(robotcontrollers.RobotController):
         ##################################
         # Votre loi de commande ici !!!
         ##################################
-        kp_approche = np.array([30,30,2])
-        kp_sortie = np.array([200,200,1000])
-        kp_fond = np.array([1000,1000,1])
-        kd_approche = np.array([20,20,1])
-        kd_fond = np.array([200,200,1])
-        r_d_approche = np.array([0.25,0.25, 0.40])
-        r_d_fond = np.array([0.25,0.25,0.20])
+        kp_approche = np.array([30, 30, 2])
+        kp_sortie = np.array([200, 200, 1000])
+        kp_fond = np.array([1000, 1000, 1])
+        kd_approche = np.array([20, 20, 1])
+        kd_fond = np.array([200, 200, 1])
+        r_d_approche = np.array([0.25, 0.25, 0.40])
+        r_d_fond = np.array([0.25, 0.25, 0.20])
         # print(r)
-        
-        if np.linalg.norm(r_d_approche - r)<1e-2 and self.case == 0:
+
+        if np.linalg.norm(r_d_approche - r) < 1e-2 and self.case == 0:
             self.case = 1
         elif abs(r_d_fond[2] - r[2]) < 1e-3 and self.case == 1:
             self.case = 2
 
         match self.case:
             case 0:
-                u = J.T @ (kp_approche * (r_d_approche - r) + kd_approche * (-J@dq)) + g
+                u = (
+                    J.T @ (kp_approche * (r_d_approche - r) + kd_approche * (-J @ dq))
+                    + g
+                )
             case 1:
-                    u = J.T @ (kp_fond * (r_d_fond - r) + f_e + kd_fond * (-J@dq)) + g
-                    # u = J.T @ f_e + g
+                u = J.T @ (kp_fond * (r_d_fond - r) + f_e + kd_fond * (-J @ dq)) + g
+                # u = J.T @ f_e + g
             case 2:
-                u = J.T @ (kp_sortie * (r_d_approche - r) + kd_fond * (-J@dq)) + g
-                
+                u = J.T @ (kp_sortie * (r_d_approche - r) + kd_fond * (-J @ dq)) + g
+
         return u
 
 
@@ -364,19 +372,17 @@ def goal2r(r_0: np.ndarray, r_f: np.ndarray, t_f: float):
         # Compute positions
         r[:, i] = (
             r_0
-            + (3 * (r_f - r_0) / (t_f**2)) * t[i]**2
-            + (-2 * (r_f - r_0) / (t_f**3)) * t[i]**3
+            + (3 * (r_f - r_0) / (t_f**2)) * t[i] ** 2
+            + (-2 * (r_f - r_0) / (t_f**3)) * t[i] ** 3
         )
 
         # Compute speeds
         dr[:, i] = (6 * (r_f - r_0) / (t_f**2)) * t[i] + (
             -6 * (r_f - r_0) / (t_f**3)
-        ) * t[i]**2
+        ) * t[i] ** 2
 
         # Compute accelerations
-        ddr[:, i] = (6 * (r_f - r_0) / (t_f**2)) + (
-            -12 * (r_f - r_0) / (t_f**3)
-        ) * t[i]
+        ddr[:, i] = (6 * (r_f - r_0) / (t_f**2)) + (-12 * (r_f - r_0) / (t_f**3)) * t[i]
 
     return r, dr, ddr
 
@@ -415,9 +421,11 @@ def r2q(r, dr, ddr, manipulator):
     for i in range(l):
         x, y, z = r[0, i], r[1, i], r[2, i]
         q1 = np.atan2(y, x)
-        c3 = (x**2 + y**2 + (z - L1) ** 2 - (L2**2 + L3**2)) / (2 * L2 * L3)
-        q3 = np.arccos(c3)
-        q2 = np.atan2(z-L1, np.sqrt(x**2 + y**2)) - np.atan2(L3*np.sin(q3), L2 + L3*np.sin(q3))
+        c3 = (x**2 + y**2 + (z-L1)**2 - (L2**2 + L3**2)) / (2 * L2 * L3)
+        q3 = -np.arccos(c3)
+        q2 = np.atan2(z - L1, np.sqrt(x**2 + y**2)) - np.atan2(
+            L3 * np.sin(q3), L2 + L3 * np.cos(q3)
+        )
         q[:, i] = np.array([q1, q2, q3], dtype=np.float64)
 
     for i in range(l):
@@ -492,8 +500,8 @@ def q2torque(q, dq, ddq, manipulator):
         g = manipulator.g(qi)  # Gravity vector
         H = manipulator.H(qi)  # Inertia matrix
         C = manipulator.C(qi, dqi)  # Coriolis matrix
-        d = manipulator.d(qi, dqi) # Dissipative forces matrix
-        B = manipulator.B(qi) # Actuator matrix
+        d = manipulator.d(qi, dqi)  # Dissipative forces matrix
+        B = manipulator.B(qi)  # Actuator matrix
         tau[:, i] = np.linalg.inv(B) @ (H @ ddqi + C @ dqi + d + g)
 
     return tau
