@@ -101,10 +101,14 @@ def f(q):
     """
     __r = np.zeros((3, 1))
 
-    r = np.array([0.033, 0.155, 0.155, 0, 0, 0.051], dtype=np.float64)
-    d = np.array([0.147, 0, 0, 0, 0.2175, q[5] + 0.01], dtype=np.float64)
-    theta = np.array([q[0], q[1], q[2], q[3], q[4], 0], dtype=np.float64)
-    alpha = np.array([np.pi / 2, 0, 0, np.pi / 2, 0, 0], dtype=np.float64)
+    # r = np.array([0.033, 0.155, 0.155, 0, 0, 0], dtype=np.float64)
+    # d = np.array([0.147, 0, 0, 0, 0.2175, q[5] + 0.01], dtype=np.float64)
+    # theta = np.array([q[0], q[1], q[2], q[3], q[4], 0], dtype=np.float64)
+    # alpha = np.array([np.pi / 2, 0, 0, np.pi / 2, 0, 0], dtype=np.float64)
+    r = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0], dtype=np.float64)
+    d = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0], dtype=np.float64)
+    theta = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0], dtype=np.float64)
+    alpha = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0], dtype=np.float64)
 
     T = dhs2T(r, d, theta, alpha)
 
@@ -133,7 +137,7 @@ class CustomPositionController(EndEffectorKinematicController):
         self.L2 = 0.5  # m
         self.L3 = 0.5  # m
         self.gains = np.diag([1.0, 1.0])
-        self.dq_max = np.pi / 4  # Joint speed limits (rad/s). NOTE: optional.
+        self.dq_max = np.pi  # Joint speed limits (rad/s). NOTE: optional.
         self.lambda_dls = 0.1  # Damping factor
 
     def fwd_kin(self, q: np.ndarray) -> np.ndarray:
@@ -290,7 +294,22 @@ class CustomDrillingController(robotcontrollers.RobotController):
         # Votre loi de commande ici !!!
         ##################################
 
-        u = np.zeros(self.m)  # place-holder de bonne dimension
+        # Contrôleur en position x-y
+        r_d = np.array([0.25, 0.25, 0.2])
+        if abs(r[0] - r_d[0]) < 1e-3 and abs(r[1] - r_d[1]) < 1e-3 and abs(r[2] - r_d[2]) < 1e-3:
+           pass # TODO: controleur en force pour Z || controleur hybride
+        else:
+            r_e = r_d - r
+            dr_d = np.array([1.0, 1.0]) * r_e
+            dr_r = dr_d
+            dq = np.linalg.inv(J) @ dr_r
+            return dq
+
+        # Contrôleur force en Z
+        f_d = np.array([0, 0, -200], dtype=np.float64)
+        tau = J.T @ (f_d - f_e) + g
+
+        u = tau
 
         return u
 
@@ -386,14 +405,29 @@ def r2q(r, dr, ddr, manipulator):
     # Number of DoF
     n = 3
 
+    x, y, z = r
+    L1, L2, L3 = manipulator.l1, manipulator.l2, manipulator.l3
+    q1 = np.atan2(y, x)
+    c3 = (x**2 + y**2 + (z-1)**2 - L2**2 - L3**2 ) / (2*L2*L3)
+    s3 = np.sqrt(1 - c3**2)
+    q3 = np.atan2(s3, c3)
+    s2 = ((L2 + L3*c3)*(z - L1) - (L3*s3)*(x*np.cos(q1) + y*np.sin(q1))) / (L3**2 * s3**2 - (L2 + L3 * c3**2))
+    c2 = np.sqrt(1 - s2**2)
+    q2 = np.atan2(s2, c2)
+
     # Output dimensions
-    q = np.zeros((n, l))
     dq = np.zeros((n, l))
     ddq = np.zeros((n, l))
 
     #################################
     # Votre code ici !!!
     ##################################
+
+    q = np.array([q1, q2, q3])
+    J = manipulator.J(q)
+    dq = np.linalg.inv(J) @ dr
+    ddq = 
+
 
     # TODO: depends on DH parameters of drilling robot
 
